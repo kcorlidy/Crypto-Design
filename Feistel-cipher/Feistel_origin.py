@@ -1,4 +1,4 @@
-from binascii import a2b_hex, b2a_hex, unhexlify, hexlify
+from binascii import unhexlify, hexlify
 import unittest
 import re
 import warnings
@@ -6,7 +6,7 @@ from _warn import ParamWarning, ParamError
 from Crypto import Random
 
 class Feistel(object):
-	"""docstring for Fi"""
+	
 	def __init__(self, key, rounds, f=None):
 		self.key = self.all2bin(key)
 		self.rounds = rounds
@@ -129,7 +129,7 @@ class test(unittest.TestCase):
 		f = Feistel(key,3)
 		Ln,Rn = f.encrypt(plaintext)
 		plaintext_ = f.decrypt(Ln,Rn)
-		plaintext_ = unhexlify(plaintext_)
+		plaintext_ = unhexlify(plaintext_) # need to do it by yourself.
 		self.assertEqual(plaintext,plaintext_)
 
 if __name__ == '__main__':
