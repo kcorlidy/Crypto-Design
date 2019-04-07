@@ -131,6 +131,16 @@ class test(unittest.TestCase):
 		plaintext_ = f.decrypt(Ln,Rn)
 		plaintext_ = unhexlify(plaintext_) # need to do it by yourself.
 		self.assertEqual(plaintext,plaintext_)
+		
+	def test_strange_inpt3(self):
+		for _ in range(10):
+			key = Random.new().read(16)
+			plaintext = Random.new().read(8)
+
+			f = Feistel(key,2)
+			Ln,Rn = f.encrypt(plaintext)
+			plaintext_ = f.decrypt(Ln,Rn)
+			self.assertEqual(hexlify(plaintext).decode(),plaintext_)
 
 if __name__ == '__main__':
 

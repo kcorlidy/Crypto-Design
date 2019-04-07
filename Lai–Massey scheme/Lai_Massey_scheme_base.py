@@ -67,7 +67,7 @@ class Lai_Massey(object):
 		L = self.s2b(plaintext[:lens])
 		R = self.s2b(plaintext[lens:])
 		# R0' = R_0, L0' = L0
-
+		
 		L_, R_, self.key = int(L,2), int(R,2), int(self.key, 2)
 		
 		L_, R_ = self.H(L_, R_)
@@ -86,7 +86,17 @@ class Lai_Massey(object):
 			T = self.F(L_ - R_, self.key)
 			L_, R_ = self.H_(L_ - T, R_ - T)
 		
-		bins = ["{0:#010b}".format(int(v)).replace("b","") for v in [L_,R_]]
+		bins = ["{0:#010b}".format(int(v)).replace("b","0") for v in [L_,R_]]
+		for b in bins: 
+			# check if match 8 bit.
+			length = len(b)%8
+			if length == 0:
+				continue
+			elif length == 1:
+				bins[bins.index(b)] = bins[bins.index(b)][1:]
+			else:
+				bins[bins.index(b)] = "0" + bins[bins.index(b)]
+
 		return "".join(self.b2s(b) for b in bins)
 	
 	def b2s(self,bins):
@@ -150,6 +160,19 @@ class test(unittest.TestCase):
 		plaintext_ = f.decrypt(ciphertext)
 		plaintext_ = unhexlify(plaintext_)
 		self.assertEqual(plaintext,plaintext_)
+
+	def test_strange_inpt3(self):
+		for _ in range(10):
+			key = Random.new().read(16)
+			plaintext = Random.new().read(8)
+
+			key = hexlify(key).decode()
+			plaintext = hexlify(plaintext).decode()
+
+			f = Lai_Massey(key,2)
+			ciphertext = f.encrypt(plaintext)
+			plaintext_ = f.decrypt(ciphertext)
+			self.assertEqual(plaintext,plaintext_)
 
 if __name__ == '__main__':
 
