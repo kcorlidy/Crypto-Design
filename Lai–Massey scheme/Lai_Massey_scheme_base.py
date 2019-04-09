@@ -163,8 +163,8 @@ class test(unittest.TestCase):
 
 	def test_strange_inpt3(self):
 		for _ in range(10):
-			key = Random.new().read(16)
-			plaintext = Random.new().read(8)
+			key = Random.new().read(1600)
+			plaintext = Random.new().read(1600)
 
 			key = hexlify(key).decode()
 			plaintext = hexlify(plaintext).decode()
