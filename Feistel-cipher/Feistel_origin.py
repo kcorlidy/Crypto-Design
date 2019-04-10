@@ -21,12 +21,14 @@ class Feistel(object):
 			raise ParamError("Invalid key length")
 
 	def all2bin(self,value,types=None):
+
 		if types == 16:
 			result = "{0:#010b}".format(int(value, 16))[2:]
-			while len(result)%2 !=0:
+			while len(result)%8 !=0:
 				# something will lose leading zero.
 				result = "0" + result
 			return result
+
 		try:
 			return ''.join(format(ord(x), '#010b')[2:] for x in value) # 8bit is necessary.
 		except Exception as e:
@@ -58,15 +60,19 @@ class Feistel(object):
 			)
 
 	def encrypt(self,plaintext):
+		'''
+		Try to use integer instead of bytes string. because integer is helpful.
+		'''
 		lens = int(len(plaintext)/2)
 		L = [self.all2bin(plaintext[:lens])]
 		R = [self.all2bin(plaintext[lens:])]
 
 		for _ in range(self.rounds):	
 			L += [R[_]]
+			R += []
 			R += ["".join([str(int(a)^int(b)) for a,b in self.zip_(L[_],R[_]) ])]
 
-		# have a same size
+		# have a same string size
 		L_str = R_str = '{:02x}'
 		if L[-1] > R[-1]:
 			L_hex = L_str.format(int(L[-1], 2))
@@ -76,18 +82,18 @@ class Feistel(object):
 			R_hex = R_str.format(int(R[-1], 2))
 			L_str_ = '{:0%dx}'%len(R_hex)
 			L_hex = L_str_.format(int(L[-1], 2))
-
+		
 		return  L_hex + R_hex
 
 	def decrypt(self,ciphertext):
 		lens = int(len(ciphertext)/2)
 		L = [None]*self.rounds + [self.all2bin(ciphertext[:lens], types=16)]
 		R = [None]*self.rounds + [self.all2bin(ciphertext[lens:], types=16)]
-
+		
 		for _ in range(self.rounds)[::-1]:
 			R[_] = L[_+1]
-			L[_] = "".join([str(int(a)^int(b)) for a,b in self.zip_(R[_+1],L[_+1])])
-				
+			L[_] = "".join([str( int(a)^int(b) ) for a,b in self.zip_(R[_+1],L[_+1])])
+		
 		return self.b2s(L[0]+R[0])
 
 	def b2s(self,bins):
@@ -100,7 +106,7 @@ class Feistel(object):
 class test(unittest.TestCase):
 	"""docstring for test"""
 	def test_base(self):
-		key = "123433"
+		key = b"123433"
 		plaintext = "abcdf"
 
 		f = Feistel(key,3)
@@ -154,10 +160,10 @@ class test(unittest.TestCase):
 		
 	def test_strange_inpt3(self):
 		for _ in range(10):
-			key = Random.new().read(16)
-			plaintext = Random.new().read(8)
+			key = Random.new().read(160)
+			plaintext = Random.new().read(80)
 
-			f = Feistel(key,2)
+			f = Feistel(key,50)
 			ciphertext = f.encrypt(plaintext)
 			plaintext_ = f.decrypt(ciphertext)
 			self.assertEqual(hexlify(plaintext).decode(),plaintext_)

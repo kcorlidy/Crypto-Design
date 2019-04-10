@@ -8,7 +8,7 @@ from Crypto import Random
 class Lai_Massey(object):
 	
 	def __init__(self, key, rounds, f=None, h=None, h_=None):
-		self.key = self.s2b(key)
+		self.key = self.all2bin(key)
 		self.rounds = rounds
 		self.F = f if f else self.F
 		self.H = h if h else self.H
@@ -22,16 +22,24 @@ class Lai_Massey(object):
 		if len(key)%2 != 0:
 			raise ParamError("Invalid key length")
 
-	def s2b(self,value):
-		try:
-			return "".join([format(ord(x), '#010b')[2:] for x in value]) # 8bit is necessary.
-		except Exception as e:
-			try:
-				return self.s2b(hexlify(value).decode())
-			except Exception as e:
-				pass
+	def all2bin(self,value,types=None):
 
-		raise ParamError("Can't decode your input.")
+		if types == 16:
+			result = "{0:#010b}".format(int(value, 16))[2:]
+			while len(result)%8 !=0:
+				# something will lose leading zero.
+				result = "0" + result
+			return result
+
+		try:
+			return ''.join(format(ord(x), '#010b')[2:] for x in value) # 8bit is necessary.
+		except Exception as e:
+			pass
+
+		try:
+			return self.all2bin(hexlify(value).decode())
+		except Exception as e:
+			pass
 
 	def F(self,a,key):
 		# F need to return a integer that can ensure every number is positive.
@@ -64,8 +72,8 @@ class Lai_Massey(object):
 
 	def encrypt(self,plaintext):
 		lens = int(len(plaintext)/2)
-		L = self.s2b(plaintext[:lens])
-		R = self.s2b(plaintext[lens:])
+		L = self.all2bin(plaintext[:lens])
+		R = self.all2bin(plaintext[lens:])
 		# R0' = R_0, L0' = L0
 		
 		L_, R_, self.key = int(L,2), int(R,2), int(self.key, 2)
@@ -75,7 +83,18 @@ class Lai_Massey(object):
 			T = self.F(L_- R_, self.key)
 			L_, R_ = self.H(L_ + T, R_ + T)
 		
-		return hex(L_)[2:] + hex(R_)[2:]
+		# have a same string size
+		L_str = R_str = '{:02x}'
+		if L_ > R_:
+			L_hex = L_str.format(L_)
+			R_str_ = '{:0%dx}'%len(L_hex)
+			R_hex = R_str_.format(R_)
+		else:
+			R_hex = R_str.format(R_)
+			L_str_ = '{:0%dx}'%len(R_hex)
+			L_hex = L_str_.format(L_)
+		
+		return  L_hex + R_hex
 
 	def decrypt(self,ciphertext):
 		lens = int(len(ciphertext)/2)
