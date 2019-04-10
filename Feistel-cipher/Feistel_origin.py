@@ -20,7 +20,13 @@ class Feistel(object):
 		if len(key)%2 != 0:
 			raise ParamError("Invalid key length")
 
-	def all2bin(self,value):
+	def all2bin(self,value,types=None):
+		if types == 16:
+			result = "{0:#010b}".format(int(value, 16))[2:]
+			while len(result)%2 !=0:
+				# something will lose leading zero.
+				result = "0" + result
+			return result
 		try:
 			return ''.join(format(ord(x), '#010b')[2:] for x in value) # 8bit is necessary.
 		except Exception as e:
@@ -39,6 +45,7 @@ class Feistel(object):
 		return int(a, 2), int(key, 2)
 
 	def F(a,key):
+		# a,key are integer.
 		return bin(a * key)[2:]
 
 	def zip_(self,first,second):
@@ -58,12 +65,25 @@ class Feistel(object):
 		for _ in range(self.rounds):	
 			L += [R[_]]
 			R += ["".join([str(int(a)^int(b)) for a,b in self.zip_(L[_],R[_]) ])]
-				
-		return L[-1],R[-1]
 
-	def decrypt(self,Ln,Rn):
-		L = [None]*self.rounds + [Ln]
-		R = [None]*self.rounds + [Rn]
+		# have a same size
+		L_str = R_str = '{:02x}'
+		if L[-1] > R[-1]:
+			L_hex = L_str.format(int(L[-1], 2))
+			R_str_ = '{:0%dx}'%len(L_hex)
+			R_hex = R_str_.format(int(R[-1], 2))
+		else:
+			R_hex = R_str.format(int(R[-1], 2))
+			L_str_ = '{:0%dx}'%len(R_hex)
+			L_hex = L_str_.format(int(L[-1], 2))
+
+		return  L_hex + R_hex
+
+	def decrypt(self,ciphertext):
+		lens = int(len(ciphertext)/2)
+		L = [None]*self.rounds + [self.all2bin(ciphertext[:lens], types=16)]
+		R = [None]*self.rounds + [self.all2bin(ciphertext[lens:], types=16)]
+
 		for _ in range(self.rounds)[::-1]:
 			R[_] = L[_+1]
 			L[_] = "".join([str(int(a)^int(b)) for a,b in self.zip_(R[_+1],L[_+1])])
@@ -84,11 +104,11 @@ class test(unittest.TestCase):
 		plaintext = "abcdf"
 
 		f = Feistel(key,3)
-		Ln,Rn = f.encrypt(plaintext)
-		plaintext_ = f.decrypt(Ln,Rn)
+		ciphertext = f.encrypt(plaintext)
+		plaintext_ = f.decrypt(ciphertext)
 
 		self.assertEqual(plaintext,plaintext_)
-
+	
 	def test_new_F(self):
 		key = "123433"
 		plaintext = "abcdf"
@@ -97,8 +117,8 @@ class test(unittest.TestCase):
 			return bin(a *1234 * keys)[2:]
 
 		f = Feistel(key,3,f=_f)
-		Ln,Rn = f.encrypt(plaintext)
-		plaintext_ = f.decrypt(Ln,Rn)
+		ciphertext = f.encrypt(plaintext)
+		plaintext_ = f.decrypt(ciphertext)
 
 		self.assertEqual(plaintext,plaintext_)
 
@@ -107,8 +127,8 @@ class test(unittest.TestCase):
 		plaintext = "abcdf"
 
 		f = Feistel(key,3)
-		Ln,Rn = f.encrypt(plaintext)
-		plaintext_ = f.decrypt(Ln,Rn)
+		ciphertext = f.encrypt(plaintext)
+		plaintext_ = f.decrypt(ciphertext)
 
 		self.assertEqual(plaintext,plaintext_)
 
@@ -117,8 +137,8 @@ class test(unittest.TestCase):
 		plaintext = "@!#CASF:"
 
 		f = Feistel(key,3)
-		Ln,Rn = f.encrypt(plaintext)
-		plaintext_ = f.decrypt(Ln,Rn)
+		ciphertext = f.encrypt(plaintext)
+		plaintext_ = f.decrypt(ciphertext)
 
 		self.assertEqual(plaintext,plaintext_)
 
@@ -127,8 +147,8 @@ class test(unittest.TestCase):
 		plaintext = b'\xe4Q`\xdb!F\x0c\xfb\xbdZ\xb8?&%A\xf2'
 
 		f = Feistel(key,3)
-		Ln,Rn = f.encrypt(plaintext)
-		plaintext_ = f.decrypt(Ln,Rn)
+		ciphertext = f.encrypt(plaintext)
+		plaintext_ = f.decrypt(ciphertext)
 		plaintext_ = unhexlify(plaintext_) # need to do it by yourself.
 		self.assertEqual(plaintext,plaintext_)
 		
@@ -138,10 +158,10 @@ class test(unittest.TestCase):
 			plaintext = Random.new().read(8)
 
 			f = Feistel(key,2)
-			Ln,Rn = f.encrypt(plaintext)
-			plaintext_ = f.decrypt(Ln,Rn)
+			ciphertext = f.encrypt(plaintext)
+			plaintext_ = f.decrypt(ciphertext)
 			self.assertEqual(hexlify(plaintext).decode(),plaintext_)
-
+	
 if __name__ == '__main__':
 
 	unittest.main()
