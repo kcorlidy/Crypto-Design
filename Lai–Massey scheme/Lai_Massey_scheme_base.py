@@ -27,7 +27,7 @@ class Lai_Massey(object):
 		if types == 16:
 			result = "{0:#010b}".format(int(value, 16))[2:]
 			while len(result)%8 !=0:
-				# something will lose leading zero.
+				# Something will lose leading zero, when we transform hex to binary.
 				result = "0" + result
 			return result
 
@@ -42,7 +42,7 @@ class Lai_Massey(object):
 			pass
 
 	def F(self,a,key):
-		# F need to return a integer that can ensure every number is positive.
+		# F need to return a positive integer that can ensure L and R is positive.
 		p = a*key
 		return p if p>0 else -p
 
@@ -74,7 +74,6 @@ class Lai_Massey(object):
 		lens = int(len(plaintext)/2)
 		L = self.all2bin(plaintext[:lens])
 		R = self.all2bin(plaintext[lens:])
-		# R0' = R_0, L0' = L0
 		
 		L_, R_, self.key = int(L,2), int(R,2), int(self.key, 2)
 		
@@ -83,7 +82,7 @@ class Lai_Massey(object):
 			T = self.F(L_- R_, self.key)
 			L_, R_ = self.H(L_ + T, R_ + T)
 		
-		# have a same string size
+		# Same string size is necessary. otherwise we can't decrypt correctly.
 		L_str = R_str = '{:02x}'
 		if L_ > R_:
 			L_hex = L_str.format(L_)
@@ -107,7 +106,7 @@ class Lai_Massey(object):
 		
 		bins = ["{0:#010b}".format(int(v)).replace("b","0") for v in [L_,R_]]
 		for b in bins: 
-			# check if match 8 bit.
+			# 8bits per thing.
 			length = len(b)%8
 			if length == 0:
 				continue
@@ -125,7 +124,7 @@ class Lai_Massey(object):
 
 
 class test(unittest.TestCase):
-	"""docstring for test"""
+	
 	def test_base(self):
 		key = "ADAW2FS4242f"
 		plaintext = "abcdfedada231#"

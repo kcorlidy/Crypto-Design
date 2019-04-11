@@ -42,7 +42,7 @@ class Feistel(object):
 		raise ParamError("Can't decode your input.")
 
 	def b2i(self,a,key):
-		# i think i should make key can only be integer or binary.
+		# I think i should make key can only be integer or binary.
 		# binary to integer
 		return int(a, 2), int(key, 2)
 
@@ -59,9 +59,18 @@ class Feistel(object):
 				)
 			)
 
+	def Xor_bit(self, bit=8):
+		"""
+		Im trying to do xor between 8bits and 8bits, instead of 1bit or a whole string.
+		"""
+		raise NotADirectoryError
+
 	def encrypt(self,plaintext):
 		'''
-		Try to use integer instead of bytes string. because integer is helpful.
+		Try to use a big integer instead of bytes string. Integer may make everything simple.
+		But it is not specification or not accuracy. 
+		My explanation is that sometime you wanna encrypt 8bits string by using 64bits key. 
+		So you need to divide 64bits into 8 parts. Then start the loop.
 		'''
 		lens = int(len(plaintext)/2)
 		L = [self.all2bin(plaintext[:lens])]
@@ -69,10 +78,9 @@ class Feistel(object):
 
 		for _ in range(self.rounds):	
 			L += [R[_]]
-			R += []
-			R += ["".join([str(int(a)^int(b)) for a,b in self.zip_(L[_],R[_]) ])]
+			R += ["".join([str(int(a)^int(b)) for a,b in self.zip_(L[_],R[_]) ])] # xor a whole string
 
-		# have a same string size
+		# Same string size is necessary. otherwise we can't decrypt correctly.
 		L_str = R_str = '{:02x}'
 		if L[-1] > R[-1]:
 			L_hex = L_str.format(int(L[-1], 2))
@@ -104,7 +112,7 @@ class Feistel(object):
 
 
 class test(unittest.TestCase):
-	"""docstring for test"""
+	
 	def test_base(self):
 		key = b"123433"
 		plaintext = "abcdf"
