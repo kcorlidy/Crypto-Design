@@ -10,14 +10,14 @@ class Lai_Massey(object):
 	def __init__(self, key, rounds, f=None, h=None, h_=None):
 		self.key = self.all2bin(key)
 		self.rounds = rounds
-		self.F = f if f else self.F
+		self.F = f if f else self.F_
 		self.H = h if h else self.H
 		self.H_ = h_ if h_ else self.H_
 		self.checkit(key)
 
 	
 	def checkit(self,key):
-		if self.F != self.F:
+		if self.F != self.F_:
 			warnings.warn("You are using self-define F function, which have to return a binary string", ParamWarning,stacklevel=2)
 		if len(key)%2 != 0:
 			raise ParamError("Invalid key length")
@@ -41,7 +41,7 @@ class Lai_Massey(object):
 		except Exception as e:
 			pass
 
-	def F(self,a,key):
+	def F_(self,a,key):
 		# F need to return a positive integer that can ensure L and R is positive.
 		p = a*key
 		return p if p>0 else -p
