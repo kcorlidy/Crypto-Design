@@ -68,11 +68,10 @@ class ECB(Mode):
 	def decrypt(self,c):
 
 		output = []
-
 		for c_ in c:
-			output += [self._encrypt(c_)]
+			output += [self._decrypt(c_)]
 
-		return output
+		return self.b2s(self.tobin(output))
 
 class CBC(Mode):
 
@@ -80,15 +79,13 @@ class CBC(Mode):
 		"""
 		Ci = Ek(Pi xor Ci-1)
 		C0 = IV
-		efgh -> 101 - 104
 		"""
-
-		output = [self.IV]
-
+		output = []
+		IV = self.IV
 		for _,p_ in enumerate(p):
-			output += [self._encrypt(p_ ^ output[_ - 1])]
-		print(self.tointarray(p))
-		print(output)
+			out = self._encrypt(p_ ^ IV)
+			output += [out]
+			IV = out
 		return output
 
 	def decrypt(self,c):
@@ -96,10 +93,13 @@ class CBC(Mode):
 		Pi = Dk(Ci) xor Ci-1
 		C0 = IV
 		"""
-		output = [self.IV]
-		output += [self._decrypt(c_) ^ c[_ - 1] for _,c_ in enumerate(c)]
-		print(output[1:])
-		return output[1:]
+		output = []
+		IV = self.IV
+		for _,c_ in enumerate(c):
+			out = self._decrypt(c_) ^ IV
+			output += [out]
+			IV =  c_
+		return self.b2s(self.tobin(output))
 
 class PCBC(Mode):
 	# size of IV alawys bigger than px
@@ -113,13 +113,13 @@ class PCBC(Mode):
 			#px = state
 			arr += [state]
 		string = reduce(lambda x,y: x+y ,[r.to_bytes(8, sys.byteorder) for r in arr])
-		print(arr,"arr", hexlify(string))# bytearray.fromhex('{:01x}'.format(r))
+		#print(arr,"arr", hexlify(string))# bytearray.fromhex('{:01x}'.format(r))
 		self.ciphertext = state 
-		print(self.decrypt(arr))
-		return self
+		#print(self.decrypt(arr))
+		return arr
 
 	def decrypt(self,c):
-		print(c,"cx")
+		#print(c,"cx")
 		IV = self.IV
 		arr = []
 		for cx in c:
@@ -127,7 +127,7 @@ class PCBC(Mode):
 			state = state ^ IV
 			IV = cx ^ state
 			arr += [state]
-		return self.b2s(self.tobin(arr, binstring=True))
+		return self.b2s(self.tobin(arr))
 
 class CFB(Mode):
 
@@ -181,17 +181,24 @@ class XEX(Mode):
 
 
 class test(unittest.TestCase):
+
+	def test_ECB(self):
+		mode = ECB(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, _rounds=7,IV=b"abcd")
+		cipher = mode.encrypt(b"efgh")
+		plain  = mode.decrypt(cipher)
+		self.assertEqual(b"efgh", plain)
 	
 	def test_CBC(self):
 		mode = CBC(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, _rounds=7,IV=b"abcd")
 		cipher = mode.encrypt(b"efgh")
 		plain  = mode.decrypt(cipher)
+		self.assertEqual(b"efgh", plain)
 
-	def _test_PCBC(self):
+	def test_PCBC(self):
 		mode = PCBC(key=b"awdad",encrypt=lambda x: x + 9,decrypt=lambda x: x - 9, _rounds=6,IV=b"abcdefgh")
 		cipher = mode.encrypt(b"efghfg")
-		c = cipher.hexdigest
-		#self.assertEqual(b"efgh",mode.decrypt(c))
+		plain = mode.decrypt(cipher)
+		self.assertEqual(b"efghfg",plain)
 
 	def _test_CFB(self):
 		func0 = lambda x: x + 440
