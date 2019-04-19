@@ -53,11 +53,6 @@ class Feistel(object):
 				)
 			)
 
-	def Xor_bit(self, bit=8):
-		"""
-		Im trying to do xor between 8bits and 8bits, instead of 1bit or a whole string.
-		"""
-		raise NotADirectoryError
 
 	def encrypt(self,plaintext):
 		'''
