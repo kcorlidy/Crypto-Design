@@ -8,9 +8,9 @@ import sys
 
 class block(object):
 	"""
-	vector can be `key` or `IV`
+	block_size can be `key` or `IV` or int
 	"""
-	def __init__(self, vector, plaintext=None, ciphertext=None):
+	def __init__(self, block_size, plaintext=None, ciphertext=None):
 		if ciphertext and not plaintext:
 			try:
 				plaintext = unhexlify(ciphertext)
@@ -20,7 +20,7 @@ class block(object):
 		elif ciphertext and plaintext:
 			raise AttributeError("only one it need, ciphertext or plaintext")
 
-		self.block_size = len(vector)
+		self.block_size = block_size if isinstance(block_size, int) else len(block_size)
 		self.plaintext = plaintext
 		self.plaintext_size = len(plaintext)
 		if self.block_size > 255:
@@ -30,7 +30,7 @@ class block(object):
 		
 		return int(self.tobin(value), 2)
 
-	def tobin(self,value,binstring=False):
+	def tobin(self,value):
 		try:
 			b = ''.join(format(ord(x), '#010b')[2:] for x in value)
 		except Exception as e:
@@ -167,163 +167,161 @@ class test(unittest.TestCase):
 	def test_paddingPKCS7(self):
 
 		# plaintext size < block size
-		b = block(plaintext=b"abcd", vector=b"abcdefghijk")
+		b = block(plaintext=b"abcd", block_size=b"abcdefghijk")
 		new_p = b.paddingPKCS7()
 		self.assertNotEqual(len(new_p) - len(b"abcdefghijk"), -1)
 		self.assertEqual(len(new_p) % len(b"abcdefghijk"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcdefghijk")
+		b = block(plaintext=new_p, block_size=b"abcdefghijk")
 		old_p = b.paddingPKCS7(inverse=True)
 		self.assertEqual(old_p, b"abcd")
 
 		# plaintext size > block size
-		b = block(plaintext=b"abcdefghijk", vector=b"abcd")
+		b = block(plaintext=b"abcdefghijk", block_size=b"abcd")
 		new_p = b.paddingPKCS7()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingPKCS7(inverse=True)
 		self.assertEqual(old_p, b"abcdefghijk")
 
 		# plaintext size = block size
-		b = block(plaintext=b"efgh", vector=b"abcd")
+		b = block(plaintext=b"efgh", block_size=b"abcd")
 		new_p = b.paddingPKCS7()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingPKCS7(inverse=True)
 		self.assertEqual(old_p, b"efgh")
 
 	def test_paddingISO10126(self):
 
 		# plaintext size < block size
-		b = block(plaintext=b"abcd", vector=b"abcdefghijk")
+		b = block(plaintext=b"abcd", block_size=b"abcdefghijk")
 		new_p = b.paddingISO10126()
 		self.assertNotEqual(len(new_p) - len(b"abcdefghijk"), -1)
 		self.assertEqual(len(new_p) % len(b"abcdefghijk"), 0)
 		
-		b = block(plaintext=new_p, vector=b"abcdefghijk")
+		b = block(plaintext=new_p, block_size=b"abcdefghijk")
 		old_p = b.paddingISO10126(inverse=True)
 		self.assertEqual(old_p,b"abcd")
 
 		# plaintext size > block size
-		b = block(plaintext=b"abcdefghijk", vector=b"abcd")
+		b = block(plaintext=b"abcdefghijk", block_size=b"abcd")
 		new_p = b.paddingISO10126()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingISO10126(inverse=True)
 		self.assertEqual(old_p, b"abcdefghijk")
 
 		# plaintext size = block size
-
-		b = block(plaintext=b"efgh", vector=b"abcd")
+		b = block(plaintext=b"efgh", block_size=b"abcd")
 		new_p = b.paddingISO10126()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingISO10126(inverse=True)
 		self.assertEqual(old_p, b"efgh")
 
 	def test_paddingANSIX923(self):
 
 		# plaintext size < block size
-		b = block(plaintext=b"abcd", vector=b"abcdefghijk")
+		b = block(plaintext=b"abcd", block_size=b"abcdefghijk")
 		new_p = b.paddingANSIX923()
 		self.assertNotEqual(len(new_p) - len(b"abcdefghijk"), -1)
 		self.assertEqual(len(new_p) % len(b"abcdefghijk"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcdefghijk")
+		b = block(plaintext=new_p, block_size=b"abcdefghijk")
 		old_p = b.paddingANSIX923(inverse=True)
 		self.assertEqual(old_p,b"abcd")
 
 		# plaintext size > block size
-		b = block(plaintext=b"abcdefghijk", vector=b"abcd")
+		b = block(plaintext=b"abcdefghijk", block_size=b"abcd")
 		new_p = b.paddingANSIX923()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingANSIX923(inverse=True)
 		self.assertEqual(old_p, b"abcdefghijk")
 
 		# plaintext size = block size
-
-		b = block(plaintext=b"efgh", vector=b"abcd")
+		b = block(plaintext=b"efgh", block_size=b"abcd")
 		new_p = b.paddingANSIX923()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingANSIX923(inverse=True)
 		self.assertEqual(old_p, b"efgh")
 
 	def test_paddingISOIEC7816_4(self):
 
 		# plaintext size < block size
-		b = block(plaintext=b"abcd", vector=b"abcdefghijk")
+		b = block(plaintext=b"abcd", block_size=b"abcdefghijk")
 		new_p = b.paddingISOIEC7816_4()
 		self.assertNotEqual(len(new_p) - len(b"abcdefghijk"), -1)
 		self.assertEqual(len(new_p) % len(b"abcdefghijk"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcdefghijk")
+		b = block(plaintext=new_p, block_size=b"abcdefghijk")
 		old_p = b.paddingISOIEC7816_4(inverse=True)
 		self.assertEqual(old_p,b"abcd")
 		
 		# plaintext size > block size
-		b = block(plaintext=b"abcdefghijk", vector=b"abcd")
+		b = block(plaintext=b"abcdefghijk", block_size=b"abcd")
 		new_p = b.paddingISOIEC7816_4()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingISOIEC7816_4(inverse=True)
 		self.assertEqual(old_p, b"abcdefghijk")
 
 		# plaintext size = block size
-		b = block(plaintext=b"efgh", vector=b"abcd")
+		b = block(plaintext=b"efgh", block_size=b"abcd")
 		new_p = b.paddingISOIEC7816_4()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingISOIEC7816_4(inverse=True)
 		self.assertEqual(old_p, b"efgh")
 
 	def test_paddingxff(self):
 
 		# plaintext size < block size
-		b = block(plaintext=b"abcd", vector=b"abcdefghijk")
+		b = block(plaintext=b"abcd", block_size=b"abcdefghijk")
 		new_p = b.paddingxff()
 		self.assertNotEqual(len(new_p) - len(b"abcdefghijk"), -1)
 		self.assertEqual(len(new_p) % len(b"abcdefghijk"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcdefghijk")
+		b = block(plaintext=new_p, block_size=b"abcdefghijk")
 		old_p = b.paddingxff(inverse=True)
 		self.assertEqual(old_p,b"abcd")
 
 		# plaintext size > block size
-		b = block(plaintext=b"abcdefghijk", vector=b"abcd")
+		b = block(plaintext=b"abcdefghijk", block_size=b"abcd")
 		new_p = b.paddingxff()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingxff(inverse=True)
 		self.assertEqual(old_p, b"abcdefghijk")
-		# plaintext size = block size
 
-		b = block(plaintext=b"efgh", vector=b"abcd")
+		# plaintext size = block size
+		b = block(plaintext=b"efgh", block_size=b"abcd")
 		new_p = b.paddingxff()
 		self.assertNotEqual(len(new_p) - len(b"abcd"), -1)
 		self.assertEqual(len(new_p) % len(b"abcd"), 0)
 
-		b = block(plaintext=new_p, vector=b"abcd")
+		b = block(plaintext=new_p, block_size=b"abcd")
 		old_p = b.paddingxff(inverse=True)
 		self.assertEqual(old_p, b"efgh")
 
