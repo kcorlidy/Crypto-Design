@@ -5,17 +5,16 @@ import warnings
 from operator import xor
 import hashlib
 
-from block_split import block
+from _block import block
 
 
 class Mode(object):
 
-	def __init__(self, key, encrypt, decrypt, block_size=16, **kw):
+	def __init__(self, encrypt, decrypt, block_size=16, **kw):
 		self._iv = kw.get("IV")
 		self.IV = self.toint(kw.get("IV"))
 		self.block_size = block_size
 		self.counter = kw.get("counter")
-		self.key = key
 
 		# Be reuseable, through applying function instead of embedding all class into a cipher.
 		self._encrypt = encrypt
@@ -69,7 +68,7 @@ class ECB(Mode):
 		c = block_.blocks_int
 
 		output = map(self._decrypt, c)
-		return block(plaintext=self.to_bytes(output), block_size=self._iv).paddingxff(inverse=True)
+		return block(plaintext=self.to_bytes(output), block_size=self.block_size).paddingxff(inverse=True)
 
 class CBC(Mode):
 
@@ -99,7 +98,7 @@ class CBC(Mode):
 		block_ = block(ciphertext=c, block_size=self.block_size)
 		c = block_.blocks_int
 		output = map(lambda tup: self._decrypt(tup[0]) ^ tup[1], zip(c, [self.IV] + c[:-1]))
-		return block(plaintext=self.to_bytes(output), block_size=self._iv).paddingxff(inverse=True)
+		return block(plaintext=self.to_bytes(output), block_size=self.block_size).paddingxff(inverse=True)
 
 class PCBC(Mode):
 
@@ -268,43 +267,43 @@ class test(unittest.TestCase):
 		Or said we dont care how long plaintext is, we just need to compute the block(s) then result come out
 	"""
 	def test_ECB(self):
-		mode = ECB(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, IV=b"abcd")
+		mode = ECB(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghf")
 		plain  = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghf", plain)
 	
 	def test_CBC(self):
-		mode = CBC(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, IV=b"abcd")
+		mode = CBC(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghf")
 		plain  = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghf", plain)
 
 	def test_PCBC(self):
-		mode = PCBC(key=b"awdad",encrypt=lambda x: x + 9,decrypt=lambda x: x - 9, IV=b"abcdefgh")
+		mode = PCBC(key=b"awdad",encrypt=lambda x: x + 9,decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghfg")
 		plain = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghfg",plain)
 
 	def test_CFB(self):
-		mode = CFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcd")
+		mode = CFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efgh")
 		plain = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efgh",plain)
 
 	def test_CFBm(self):
-		mode = CFBm(key=b"awdad",encrypt=lambda x: x << 9, decrypt=lambda x: x >> 9, IV=b"abcd")
+		mode = CFBm(key=b"awdad",encrypt=lambda x: x << 9, decrypt=lambda x: x >> 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghfg")
 		plain = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghfg",plain)
 
 	def test_OFB(self):
-		mode = OFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcd")
+		mode = OFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efgh")
 		plain = mode.decrypt(cipher.hexdigest)
 		self.assertEqual(b"efgh",plain)
 
 	def test_CTRm(self):
-		mode = CTRm(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcd")
+		mode = CTRm(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghefgh")
 		plain = mode.decrypt(cipher.hexdigest)
 		self.assertEqual(b"efghefgh",plain)
