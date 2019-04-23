@@ -10,6 +10,7 @@ class block(object):
 	block_size: block size should equal to the size of key or IV. block_size -> 8, 16, 32.
 	extending:  Extending blocks to 64, 128, etc. 
 				If block size is not multi of 8 and do not equal to key size, don't use it.
+				0 -> remove 1 -> add 2 -> nothing
 	plaintext:	just plaintext
 	ciphertext:	if it is ciphertext it may be hex, so we have to unhexlify it.
 	plaintext_size:	this will be used when compute the padding size.
@@ -121,10 +122,10 @@ class block(object):
 		In ISO/IEC 7816-4
 		 | DD DD DD DD DD DD DD DD | DD DD DD DD 80 00 00 00 |
 		 | DD DD DD DD DD DD DD DD | DD DD DD DD DD DD DD 80 |
-		But \x80 is `P`, so i decide change it to the max size \xf0. \xff is using.
+		But \x80 is `P`, so i decide change it to the max size \xf5. \xff is using.
 		"""
 		if inverse:
-			l = re.findall(b"(\xf0\x00{0,})$", self.plaintext)
+			l = re.findall(b"(\xf5\x00{0,})$", self.plaintext)
 			if l:
 				self.plaintext = self.plaintext.strip(l[-1])
 			return self.plaintext
@@ -132,7 +133,7 @@ class block(object):
 		mod = self.padding_size()
 		if not mod:
 			return
-		i = 240
+		i = 245
 		i2 = 0
 		self.plaintext += i.to_bytes(1, sys.byteorder) + i2.to_bytes(1, sys.byteorder) * (mod - 1)
 
@@ -150,27 +151,28 @@ class block(object):
 		i = 255
 		self.plaintext += i.to_bytes(1, sys.byteorder) * mod
 
-	def blocks(self, padding="xff", inverse=False):
+	def blocks(self, padding=None, inverse=False):
 		"""
 		remove what we added before
 		"""
-		if not self.extending:
+		if self.extending == 0:
 			self.remove_extending()
 
 		if padding == "xff":
 			self.paddingxff(inverse)
 
-		elif padding == "ISOIEC7816_4" or padding == "7816_4":
+		elif padding == "ISOIEC7816_4":
 			self.paddingISOIEC7816_4(inverse)
 
 		elif padding == "PKCS7":
 			self.paddingPKCS7(inverse)
 
-		elif padding == "ISO10126" or padding == "10126":
+		elif padding == "ISO10126":
 			self.paddingISO10126(inverse)
 
-		elif padding == "ANSIX923" or padding == "923":
+		elif padding == "ANSIX923":
 			self.paddingANSIX923(inverse)
+	
 
 		count = 1
 		output = [self.plaintext[:self.block_size * count]]
@@ -181,7 +183,7 @@ class block(object):
 		self._block = list(filter(lambda x:x, output))
 		
 		
-		if self.extending:
+		if self.extending == 1:
 			self._block = self.block_extend(self._block)
 			return self
 
@@ -196,7 +198,7 @@ class block(object):
 	def remove_extending(self):
 		# there is something wrong about re.sub, so i have to change to this.
 		self.plaintext = self.plaintext.replace(
-			b"".join(re.findall(b"\xff.*?\x00",  self.plaintext, re.DOTALL)), b"")
+			b"".join(re.findall(b"\xff\xff.*\xff\xff",  self.plaintext, re.DOTALL)), b"")
 
 
 	def block_extend(self, blocks):
@@ -214,7 +216,7 @@ class block(object):
 				break
 
 		 
-		extending_block = [b"\xff"+ byte +b"\x00" for byte in self.to_14bytes(_num)]
+		extending_block = [b"\xff\xff"+ byte +b"\xff\xff" for byte in self.to_14bytes(_num)]
 		return origin + extending_block
 
 	def to_14bytes(self, _num):
@@ -238,7 +240,7 @@ class block(object):
 			seeds = int(self.toint(self.plaintext) ** _num) * int((7**0.3) **_num)
 
 		seed(seeds)
-		return [b"".join([randint(1,254).to_bytes(1, sys.byteorder) for _ in range(14)]) for _ in range(_num)]
+		return [b"".join([randint(1,254).to_bytes(1, sys.byteorder) for _ in range(self.block_size - 4)]) for _ in range(_num)]
 
 
 class test(unittest.TestCase):
@@ -250,8 +252,8 @@ class test(unittest.TestCase):
 			# plaintext size < block size
 			b = block(plaintext=b"abcd", block_size=b"efghijkl")
 			new_p = b.blocks(padding=f)._block
-			self.assertNotEqual(len(new_p) - len(b"efghijkl"), -1)
-			self.assertEqual(len(new_p) % len(b"efghijkl"), 0)
+			self.assertNotEqual(len(new_p[0]) - len(b"efghijkl"), -1)
+			self.assertEqual(len(new_p[0]) % len(b"efghijkl"), 0)
 
 			new_p = b"".join(new_p)
 			b = block(plaintext=new_p, block_size=b"efghijkl", extending=0)
@@ -261,8 +263,8 @@ class test(unittest.TestCase):
 			# plaintext size > block size
 			b = block(plaintext=b"abcdefghijk", block_size=b"abcdefgh")
 			new_p = b.blocks(padding=f)._block
-			self.assertNotEqual(len(new_p) - len(b"abcdefgh"), -1)
-			self.assertEqual(len(new_p) % len(b"abcdefgh"), 0)
+			self.assertNotEqual(len(new_p[0]) - len(b"abcdefgh"), -1)
+			self.assertEqual(len(new_p[0]) % len(b"abcdefgh"), 0)
 
 			new_p = b"".join(new_p)
 			b = block(plaintext=new_p, block_size=b"abcdefgh", extending=0)
@@ -272,8 +274,8 @@ class test(unittest.TestCase):
 			# plaintext size = block size
 			b = block(plaintext=b"abcdefgh", block_size=b"abcdefgh")
 			new_p = b.blocks(padding=f)._block
-			self.assertNotEqual(len(new_p) - len(b"abcdefgh"), -1)
-			self.assertEqual(len(new_p) % len(b"abcdefgh"), 0)
+			self.assertNotEqual(len(new_p[0]) - len(b"abcdefgh"), -1)
+			self.assertEqual(len(new_p[0]) % len(b"abcdefgh"), 0)
 
 			new_p = b"".join(new_p)
 			b = block(plaintext=new_p, block_size=b"abcdefgh", extending=0)

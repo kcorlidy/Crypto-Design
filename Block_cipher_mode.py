@@ -55,7 +55,7 @@ class ECB(Mode):
 
 	def encrypt(self,p):
 		block_ = block(plaintext=p, block_size=self.block_size)
-		block_.paddingxff()
+		block_.blocks(padding="xff")
 		p = block_.blocks_int
 
 		output = map(self._encrypt, p)
@@ -64,11 +64,14 @@ class ECB(Mode):
 
 	def decrypt(self,c):
 		
-		block_ = block(ciphertext=c, block_size=self.block_size)
+		block_ = block(ciphertext=c, block_size=self.block_size, extending=2)
+		block_.blocks(padding=None)
 		c = block_.blocks_int
 
 		output = map(self._decrypt, c)
-		return block(plaintext=self.to_bytes(output), block_size=self.block_size).paddingxff(inverse=True)
+		result =  block(plaintext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		result.blocks(padding="xff", inverse=True)
+		return self.to_bytes(result.blocks_int)
 
 class CBC(Mode):
 
@@ -78,8 +81,9 @@ class CBC(Mode):
 		C0 = IV
 		"""
 		block_ = block(plaintext=p, block_size=self.block_size)
-		block_.paddingxff()
+		block_.blocks(padding="xff")
 		p = block_.blocks_int
+
 		output = []
 		IV = self.IV
 		for _,p_ in enumerate(p):
@@ -95,17 +99,23 @@ class CBC(Mode):
 		Pi = Dk(Ci) xor Ci-1
 		C0 = IV
 		"""
-		block_ = block(ciphertext=c, block_size=self.block_size)
+		block_ = block(ciphertext=c, block_size=self.block_size, extending=2)
+		block_.blocks(padding=None)
 		c = block_.blocks_int
 		output = map(lambda tup: self._decrypt(tup[0]) ^ tup[1], zip(c, [self.IV] + c[:-1]))
-		return block(plaintext=self.to_bytes(output), block_size=self.block_size).paddingxff(inverse=True)
+
+		result =  block(plaintext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		result.blocks(padding="xff", inverse=True)
+		return self.to_bytes(result.blocks_int)
 
 class PCBC(Mode):
 
 	def encrypt(self,p):
 
 		IV = self.IV
-		p = block(plaintext=p, block_size=self.block_size).blocks_int
+		p = block(plaintext=p, block_size=self.block_size)
+		p.blocks()
+		p = p.blocks_int
 
 		output = []
 		for px in p:
@@ -121,7 +131,10 @@ class PCBC(Mode):
 	def decrypt(self,c):
 		#print(c,"cx")
 		IV = self.IV
-		c = block(ciphertext=c, block_size=self.block_size).blocks_int
+		c = block(ciphertext=c, block_size=self.block_size, extending=2)
+		c.blocks()
+		c = c.blocks_int
+
 		output = []
 		for cx in c:
 			state = self._decrypt(cx)
@@ -129,13 +142,20 @@ class PCBC(Mode):
 			IV = cx ^ state
 			output += [state]
 
+		blockx = block(ciphertext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		blockx.blocks()
+		output = blockx.blocks_int
 		return self.to_bytes(output)
 
 class CFB(Mode):
 
 	def encrypt(self,p):
 		# Ci = Ek(C_{i-1}) xor Pi
-		p = block(plaintext=p, block_size=self.block_size).blocks_int
+
+		p = block(plaintext=p, block_size=self.block_size)
+		p.blocks()
+		p = p.blocks_int
+		
 		IV = self.IV
 		output = []
 		for px in p:
@@ -143,13 +163,21 @@ class CFB(Mode):
 			IV = state
 			output += [state]
 
+		
 		self.ciphertext = self.to_bytes(output)
 		return self
 
 	def decrypt(self,c):
 		# Pi = Ek(C_{i-1}) xor Ci
-		c = block(ciphertext=c, block_size=self.block_size).blocks_int
+		c = block(ciphertext=c, block_size=self.block_size, extending=2)
+		c.blocks()
+		c = c.blocks_int
+		
 		output = map(lambda tup: self._encrypt(tup[0]) ^ tup[1], zip([self.IV] + c[:-1], c))
+
+		blockx = block(ciphertext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		blockx.blocks()
+		output = blockx.blocks_int
 		return self.to_bytes(output)
 
 class CFBm(Mode):
@@ -160,7 +188,9 @@ class CFBm(Mode):
 
 	def encrypt(self,p):
 	
-		p = block(plaintext=p, block_size=self.block_size).blocks_int
+		p = block(plaintext=p, block_size=self.block_size)
+		p.blocks()
+		p = p.blocks_int
 
 		self.x = 8
 		S = self.IV
@@ -171,11 +201,18 @@ class CFBm(Mode):
 			S = ((S << self.x) + state) % (2**n)
 			output += [state]
 
+		print(output,"encrypt output")
+		
 		self.ciphertext = self.to_bytes(output)
 		return self
 
 	def decrypt(self,c):
-		c = block(ciphertext=c, block_size=self.block_size).blocks_int
+		c = block(ciphertext=c, block_size=self.block_size, extending=2)
+		c.blocks()
+		c = c.blocks_int
+
+		print(c,"decrypt input")
+
 		self.x = 8
 		S = self.IV
 		n = len(str(self.IV))
@@ -185,6 +222,9 @@ class CFBm(Mode):
 			S = ((S << self.x) + state) % (2**n)
 			output += [state]
 
+		blockx = block(ciphertext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		blockx.blocks()
+		output = blockx.blocks_int
 		return self.to_bytes(output)
 
 		
@@ -199,7 +239,10 @@ class OFB(Mode):
 	"""
 	def encrypt(self,p):
 
-		p = block(plaintext=p, block_size=self.block_size).blocks_int
+		p = block(plaintext=p, block_size=self.block_size)
+		p.blocks()
+		p = p.blocks_int
+
 		IV = self.IV
 		output = []
 		for px in p:
@@ -213,13 +256,19 @@ class OFB(Mode):
 	def decrypt(self,c):
 
 		IV = self.IV
-		c = block(ciphertext=c, block_size=self.block_size).blocks_int
+		c = block(ciphertext=c, block_size=self.block_size, extending=2)
+		c.blocks()
+		c = c.blocks_int
+
 		output = []
 		for cx in c:
 			o = self._encrypt(IV)
 			output += [cx ^ o]
 			IV = o
 
+		blockx = block(ciphertext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		blockx.blocks()
+		output = blockx.blocks_int
 		return self.to_bytes(output)
 
 class CTRm(Mode):
@@ -234,15 +283,25 @@ class CTRm(Mode):
 
 	def encrypt(self,p):
 
-		p = block(plaintext=p, block_size=self.block_size).blocks_int
+		p = block(plaintext=p, block_size=self.block_size)
+		p.blocks()
+		p = p.blocks_int
+
 		output = map(lambda tup: self._encrypt(self._counter(tup[0])) ^ tup[1], enumerate(p))
 		self.ciphertext = self.to_bytes(output)
 		return self
 
 	def decrypt(self,c):
 
-		c = block(ciphertext=c, block_size=self.block_size).blocks_int
+		c = block(ciphertext=c, block_size=self.block_size, extending=2)
+		c.blocks()
+		c = c.blocks_int
+
 		output = map(lambda tup: self._encrypt(self._counter(tup[0])) ^ tup[1], enumerate(c))
+
+		blockx = block(ciphertext=self.to_bytes(output), block_size=self.block_size, extending=0)
+		blockx.blocks()
+		output = blockx.blocks_int
 		return self.to_bytes(output)
 
 class XTS(Mode):
@@ -267,7 +326,7 @@ class test(unittest.TestCase):
 		Or said we dont care how long plaintext is, we just need to compute the block(s) then result come out
 	"""
 	def test_ECB(self):
-		mode = ECB(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, IV=b"abcdabcdabcdabcd")
+		mode = ECB(key=b"awdad",encrypt=lambda x: x + 3,decrypt=lambda x: x - 3, IV=b"abcdabcd")
 		cipher = mode.encrypt(b"efghf")
 		plain  = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghf", plain)
@@ -279,19 +338,19 @@ class test(unittest.TestCase):
 		self.assertEqual(b"efghf", plain)
 
 	def test_PCBC(self):
-		mode = PCBC(key=b"awdad",encrypt=lambda x: x + 9,decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
+		mode = PCBC(key=b"awdadawdadawdadawdadawdadawdad",encrypt=lambda x: x + 9,decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghfg")
 		plain = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghfg",plain)
 
 	def test_CFB(self):
-		mode = CFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
+		mode = CFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"bcdabcdefghijklm")
 		cipher = mode.encrypt(b"efgh")
 		plain = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efgh",plain)
 
 	def test_CFBm(self):
-		mode = CFBm(key=b"awdad",encrypt=lambda x: x << 9, decrypt=lambda x: x >> 9, IV=b"abcdabcdabcdabcd")
+		mode = CFBm(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
 		cipher = mode.encrypt(b"efghfg")
 		plain = mode.decrypt(cipher.digest)
 		self.assertEqual(b"efghfg",plain)
