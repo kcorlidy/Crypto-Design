@@ -17,7 +17,8 @@ class block(object):
 
 	TODO: i want to add padding into blocks function, also the extending function. So we can do everything easier.
 	"""
-	def __init__(self, block_size, plaintext=None, ciphertext=None, extending=1):
+	def __init__(self, block_size, plaintext=None, ciphertext=None, 
+					padding=None, inverse=False, extending=2):
 		if ciphertext and not plaintext:
 			try:
 				plaintext = unhexlify(ciphertext)
@@ -27,10 +28,13 @@ class block(object):
 		elif ciphertext and plaintext:
 			raise AttributeError("only one it need, ciphertext or plaintext")
 
+		self.padding = padding
+		self.inverse = inverse
 		self.extending = extending 
 		self.block_size = block_size if isinstance(block_size, int) else len(block_size)
 		self.plaintext = plaintext
 		self.plaintext_size = len(plaintext)
+		self.blocks()
 
 	def toint(self,value):
 		
@@ -151,10 +155,12 @@ class block(object):
 		i = 255
 		self.plaintext += i.to_bytes(1, sys.byteorder) * mod
 
-	def blocks(self, padding=None, inverse=False):
+	def blocks(self):
 		"""
 		remove what we added before
 		"""
+		inverse = self.inverse
+		padding = self.padding
 		if self.extending == 0:
 			self.remove_extending()
 
@@ -195,6 +201,10 @@ class block(object):
 		return [self.toint(b) for b in self._block]
 
 
+
+	"""
+	block extending is not available, but i will keep it because i think i will use it again.
+	"""
 	def remove_extending(self):
 		# there is something wrong about re.sub, so i have to change to this.
 		self.plaintext = self.plaintext.replace(

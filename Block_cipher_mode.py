@@ -4,6 +4,7 @@ import re
 import warnings
 from operator import xor
 import hashlib
+import sys
 
 from _block import block
 
@@ -191,7 +192,7 @@ class CFBm(Mode):
 		p = block(plaintext=p, block_size=self.block_size)
 		p.blocks()
 		p = p.blocks_int
-
+		print(p,"origin")
 		self.x = 8
 		S = self.IV
 		n = len(str(self.IV))
@@ -200,18 +201,21 @@ class CFBm(Mode):
 			state = self.head(self._encrypt(S)) ^ px
 			S = ((S << self.x) + state) % (2**n)
 			output += [state]
-
-		print(output,"encrypt output")
 		
 		self.ciphertext = self.to_bytes(output)
+
+		print(output, self.ciphertext, len(self.ciphertext), "encrypt output")
+
 		return self
 
 	def decrypt(self,c):
+		t = c
 		c = block(ciphertext=c, block_size=self.block_size, extending=2)
 		c.blocks()
 		c = c.blocks_int
 
-		print(c,"decrypt input")
+		print(c, t, "decrypt input")
+		print(t[:13], self.toint(b"\x00"*3+t[:13]))
 
 		self.x = 8
 		S = self.IV
@@ -344,10 +348,10 @@ class test(unittest.TestCase):
 		self.assertEqual(b"efghfg",plain)
 
 	def test_CFB(self):
-		mode = CFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"bcdabcdefghijklm")
-		cipher = mode.encrypt(b"efgh")
+		mode = CFB(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"\x00"*16)
+		cipher = mode.encrypt(b"efghfg")
 		plain = mode.decrypt(cipher.digest)
-		self.assertEqual(b"efgh",plain)
+		self.assertEqual(b"efghfg",plain)
 
 	def test_CFBm(self):
 		mode = CFBm(key=b"awdad",encrypt=lambda x: x + 9, decrypt=lambda x: x - 9, IV=b"abcdabcdabcdabcd")
