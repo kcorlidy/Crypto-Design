@@ -15,8 +15,9 @@ class Mode(object):
 		self.IV = kw.get("IV")
 		self.block_size = block_size
 		self.counter = kw.get("counter")
-		self.mode = [ECB, CBC, PCBC , CFB, CFBm, OFB, CTRm][mode]
-
+		self.mode = [ECB, CBC, PCBC , CFB, OFB, CTRm][mode] # CFBm on hold.
+		if len(self.IV) % 16 != 0:
+			raise AttributeError("Key size multi be multi of 16, your key size is {}".format(len(self.IV)))
 		# Be reuseable, through applying function instead of embedding all class into a cipher.
 		self._encrypt = encrypt
 		self._decrypt = decrypt
@@ -35,13 +36,13 @@ class Mode(object):
 			b = "0" + b
 		return b
 
-	def head(self,s):
-		return int(s/(10**self.x))
+	def head(self,byte):
+		return b"".join( int(b/(10**self.x)).to_bytes(1, sys.byteorder) for b in byte)
 
 	def _counter(self,count):
 		# create fixed size nonce and counter. 16bytes = 64bits
-		result = self.toint((hashlib.sha512(self._iv + bytes(count)).digest())[:self.block_size])
-		return result
+		return hashlib.sha512(self.IV + count.to_bytes(1, sys.byteorder)
+							).digest()[:self.block_size]
 
 	@property
 	def digest(self):
@@ -60,8 +61,11 @@ class Mode(object):
 		return b"".join( [ints.to_bytes(1, sys.byteorder) for ints in map(lambda x: xor(*x), zip(a,b))] )
 
 	def encrypt(self, p):
-		if self.mode in [ECB, CBC]:
-			p = block(plaintext=p, block_size=self.block_size, padding="xff")._block
+
+		if self.mode in [ECB, CBC] and len(p)%16 != 0:
+			
+			raise AttributeError(
+				"Plaintext size should be multi of 16 when you use ECB and CBC")
 		else:
 			p =  block(plaintext=p, block_size=self.block_size)._block
 
@@ -70,13 +74,8 @@ class Mode(object):
 	def decrypt(self, c):
 		c = block(ciphertext=c, block_size=self.block_size)._block
 		output = b"".join(self.mode.decrypt(self, c))
-		
-		if self.mode in [ECB, CBC]:
-			return self.to_bytes(
-				block(plaintext=output, block_size=self.block_size,
-				 padding="xff", inverse=True)._block)
-		else:
-			return self.to_bytes(
+	
+		return self.to_bytes(
 				block(ciphertext=output, block_size=self.block_size)._block)
 	
 
@@ -116,7 +115,6 @@ class CBC(Mode):
 		C0 = IV
 		"""
 		output = map(lambda tup: self.xor_bytes(self._decrypt(tup[0]), tup[1]), zip(c, [self.IV] + c[:-1]))
-
 		return list(output)
 
 class PCBC(Mode):
@@ -126,13 +124,13 @@ class PCBC(Mode):
 		IV = self.IV
 		output = []
 		for px in p:
-			state = px ^ IV
+			state = self.xor_bytes(px, IV)
 			state = self._encrypt(state)
-			IV = state ^ px
+			IV = self.xor_bytes(state, px)
 			#px = state
 			output += [state]
 
-		self.ciphertext = output[0]
+		self.ciphertext = output
 		return self
 
 	def decrypt(self,c):
@@ -141,8 +139,8 @@ class PCBC(Mode):
 		output = []
 		for cx in c:
 			state = self._decrypt(cx)
-			state = state ^ IV
-			IV = cx ^ state
+			state = self.xor_bytes(state, IV)
+			IV = self.xor_bytes(cx, state)
 			output += [state]
 
 		return output
@@ -154,37 +152,35 @@ class CFB(Mode):
 		IV = self.IV
 		output = []
 		for px in p:
-			state = self._encrypt(IV) ^ px
+			state = self.xor_bytes(self._encrypt(IV), px)
 			IV = state
 			output += [state]
 
-		self.ciphertext = self.to_bytes(output)
+		self.ciphertext = output
 		return self
 
 	def decrypt(self,c):
 		# Pi = Ek(C_{i-1}) xor Ci
-		output = map(lambda tup: self._encrypt(tup[0]) ^ tup[1], zip([self.IV] + c[:-1], c))
+		output = map(lambda tup: self.xor_bytes(self._encrypt(tup[0]), tup[1]), zip([self.IV] + c[:-1], c))
 		return output
 
 class CFBm(Mode):
-	# CFB modified version
+	# CFB modified version, but i dont know how to handle the input that is 16bytes of \x00.
 
 	def encrypt(self,p):
-	
 		
+		print(p, "origin")
 		self.x = 8
 		S = self.IV
 		n = len(str(self.IV))
 		output = []
 		for px in p:
-			state = self.head(self._encrypt(S)) ^ px
+			state = self.xor_bytes(self.head(self._encrypt(S)), px)
+			print(state, len(state), "STATE")
 			S = ((S << self.x) + state) % (2**n)
 			output += [state]
 		
-		self.ciphertext = self.to_bytes(output)
-
-		
-
+		self.ciphertext = output
 		return self
 
 	def decrypt(self,c):
@@ -194,7 +190,7 @@ class CFBm(Mode):
 		n = len(str(self.IV))
 		output = []
 		for cx in c:
-			state = self.head(self._encrypt(S)) ^ cx
+			state = self.xor_bytes(self.head(self._encrypt(S)), cx)
 			S = ((S << self.x) + state) % (2**n)
 			output += [state]
 
@@ -216,10 +212,10 @@ class OFB(Mode):
 		output = []
 		for px in p:
 			o = self._encrypt(IV)
-			output += [px ^ o]
+			output += [self.xor_bytes(px, o)]
 			IV = o
 		
-		self.ciphertext = self.to_bytes(output)
+		self.ciphertext = output
 		return self
 
 	def decrypt(self,c):
@@ -228,7 +224,7 @@ class OFB(Mode):
 		output = []
 		for cx in c:
 			o = self._encrypt(IV)
-			output += [cx ^ o]
+			output += [ self.xor_bytes(cx, o)]
 			IV = o
 		return output
 
@@ -240,13 +236,16 @@ class CTRm(Mode):
 
 	def encrypt(self,p):
 
-		output = map(lambda tup: self._encrypt(self._counter(tup[0])) ^ tup[1], enumerate(p))
-		self.ciphertext = self.to_bytes(output)
+		output = map(lambda tup: self.xor_bytes(
+			self._encrypt(
+				self._counter(tup[0])), tup[1]
+			), enumerate(p))
+		self.ciphertext = list(output)
 		return self
 
 	def decrypt(self,c):
 
-		output = map(lambda tup: self._encrypt(self._counter(tup[0])) ^ tup[1], enumerate(c))
+		output = map(lambda tup: self.xor_bytes(self._encrypt(self._counter(tup[0])), tup[1]), enumerate(c))
 		return output
 
 class XTS(Mode):
@@ -272,11 +271,11 @@ class test(unittest.TestCase):
 		Or said we dont care how long plaintext is, we just need to compute the block(s) then result come out
 	"""
 
-	def test_all(self):
+	def test_normal_content(self):
 		key = None
-		mode = range(7) # [ECB, CBC, PCBC , CFB, CFBm, OFB, CTRm]
-		IV = [b"\xff"*16, b"\x00"*16, b"\x00abdcjioadwwefr"]
-		plaintext = [b"\xfe"*15, b"\x02"*15, b"\x01abdcjioadwwefr"]
+		mode = range(6) # [ECB, CBC, PCBC , CFB, CFBm, OFB, CTRm]
+		IV = [b"\xff"*16, b"\x00"*16, b"\x00abdcjioadwwefr3", b"\x01\x02"*8]
+		plaintext = [b"\xfe"*16, b"\x02"*16, b"\x01abdcjioadwwefre"]
 		for class_ in mode:
 			print(class_)
 			for p in plaintext:
@@ -286,19 +285,18 @@ class test(unittest.TestCase):
 					plain = mode.decrypt(cipher.hexdigest)
 					self.assertEqual(p,plain)
 
-	def _test_special_content(self):
+	def test_special_content(self):
 		# byte xored byte, bit xored bit, not block to int then xored
 		# so how to ensure the plaintext which size 1 can output a full block content after xored.
 		key = None
-		mode = range(7) # [ECB, CBC, PCBC , CFB, CFBm, OFB, CTRm]
-		IV = [b"\xff"*16, b"\x00"*16, b"\x00abdcjioadwwefr"]
-		plaintext = [b"\x00"*15, b"\xff"*15, b"\x01abdcjioadwwefr"]
+		mode = range(6) # [ECB, CBC, PCBC , CFB, CFBm, OFB, CTRm]
+		IV = [b"\xff"*16, b"\x00"*16, b"\x00abdcjioadwwefr3"]
+		plaintext = [b"\x00"*16, b"\xff"*16, b"\x01abdcjioadwwefrf"]
 		for class_ in mode:
 			for p in plaintext:
 				for iv in IV:
-					mode = Mode(key=key,encrypt=lambda x: x ^ 9, decrypt=lambda x: x ^ 9, mode=class_, IV=iv)
+					mode = Mode(key=key,encrypt=lambda x: x, decrypt=lambda x: x, mode=class_, IV=iv)
 					cipher = mode.encrypt(p)
-					print(len(cipher.hexdigest), class_)
 					plain = mode.decrypt(cipher.hexdigest)
 					self.assertEqual(p,plain)
 		

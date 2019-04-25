@@ -4,11 +4,14 @@ import re
 import warnings
 from _warn import ParamWarning, ParamError
 from Crypto import Random
+from operator import xor
+import sys
+import os
 
 class Feistel(object):
 	
 	def __init__(self, key, rounds, f=None):
-		self.key = self.all2bin(key)
+		self.key = key
 		self.rounds = rounds
 		self.F = f if f else Feistel.F
 		self.checkit(key)
@@ -20,91 +23,52 @@ class Feistel(object):
 		if len(key)%2 != 0:
 			raise ParamError("Invalid key length")
 
-	def all2bin(self,value,types=None):
-		if types == 16:
-			result = "{0:#010b}".format(int(value, 16))[2:]
-			while len(result)%8 !=0:
-				# something will lose leading zero.
-				result = "0" + result
-			return result
-
-		try:
-			return ''.join(format(ord(x), '#010b')[2:] for x in value) # 8bit is necessary.
-		except Exception as e:
-			return ''.join(format(x, '#010b')[2:] for x in value)
-
-		raise ParamError("Can't decode your input.")
-
-	def b2i(self,a,key):
-		# I think i should make key can only be integer or binary.
-		# binary to integer
-		return int(a, 2), int(key, 2)
-
-	def F(a,key):
+	def F(self,a,key):
 		# a,key are integer.
-		return bin(a * key)[2:]
+		return self.xor_bytes(a,key)
 
-	def zip_(self,first,second):
-		return zip(list(first),
-			list(
-				self.F(
-					*self.b2i(second, self.key)
-					)
-				)
-			)
-
+	def xor_bytes(self,a,b):
+		return b"".join( [ints.to_bytes(1, sys.byteorder) for ints in map(lambda x: xor(*x), zip(a,b))] )
 
 	def encrypt(self,plaintext):
-		'''
-		Try to use a big integer instead of bytes string. Integer may make everything simple.
-		But it is not specification or not accuracy. 
-		My explanation is that sometime you wanna encrypt 8bits string by using 64bits key. 
-		So you need to divide 64bits into 8 parts. Then start the loop.
-		'''
+
+		if len(plaintext)%2 != 0:
+			raise RuntimeError("This is balanced Feistel")
+
+		if len(plaintext) > len(self.key):
+			raise RuntimeError("key size have to larger than block size")
+
 		lens = int(len(plaintext)/2)
-		L = [self.all2bin(plaintext[:lens])]
-		R = [self.all2bin(plaintext[lens:])]
+		L = [plaintext[:lens]]
+		R = [plaintext[lens:]]
 
 		for _ in range(self.rounds):	
 			L += [R[_]]
-			R += ["".join([str(int(a)^int(b)) for a,b in self.zip_(L[_],R[_]) ])] # xor a whole string
-
-		# Same string size is necessary. otherwise we can't decrypt correctly.
-		L_str = R_str = '{:02x}'
-		if L[-1] > R[-1]:
-			L_hex = L_str.format(int(L[-1], 2))
-			R_str_ = '{:0%dx}'%len(L_hex)
-			R_hex = R_str_.format(int(R[-1], 2))
-		else:
-			R_hex = R_str.format(int(R[-1], 2))
-			L_str_ = '{:0%dx}'%len(R_hex)
-			L_hex = L_str_.format(int(L[-1], 2))
+			R += [self.xor_bytes(L[_], 
+			self.F(self, R[_], self.key)
+			)]
 		
-		return  L_hex + R_hex
+		return  L[-1] + R[-1]
 
 	def decrypt(self,ciphertext):
 		lens = int(len(ciphertext)/2)
-		L = [None]*self.rounds + [self.all2bin(ciphertext[:lens], types=16)]
-		R = [None]*self.rounds + [self.all2bin(ciphertext[lens:], types=16)]
+		L = [None]*self.rounds + [ciphertext[:lens]]
+		R = [None]*self.rounds + [ciphertext[lens:]]
 		
 		for _ in range(self.rounds)[::-1]:
 			R[_] = L[_+1]
-			L[_] = "".join([str( int(a)^int(b) ) for a,b in self.zip_(R[_+1],L[_+1])])
+			L[_] = self.xor_bytes(R[_+1], self.F(self,
+												L[_+1], self.key)
+									)
 		
-		return self.b2s(L[0]+R[0])
-
-	def b2s(self,bins):
-		return bytes([ int(ele,2) for ele in re.findall(r"\d{8}",bins)])
-
-	def b2h(self,strs):
-		return hex(int(strs,2))
+		return L[0]+R[0]
 
 
 class test(unittest.TestCase):
 	
 	def test_base(self):
 		key = b"123433"
-		plaintext = b"abcdf"
+		plaintext = b"\x00\x00"
 
 		f = Feistel(key,3)
 		ciphertext = f.encrypt(plaintext)
@@ -114,10 +78,10 @@ class test(unittest.TestCase):
 	
 	def test_new_F(self):
 		key = b"123433"
-		plaintext = b"abcdf"
+		plaintext = b"abcdfg"
 
-		def _f(a,keys):
-			return bin(a *1234 * keys)[2:]
+		def _f(self, a, key):
+			return self.xor_bytes(self.xor_bytes(a,key), b"\xff"*16)
 
 		f = Feistel(key,3,f=_f)
 		ciphertext = f.encrypt(plaintext)
@@ -127,7 +91,7 @@ class test(unittest.TestCase):
 
 	def test_different_types_string(self):
 		key = b'\xe4Q`\xdb!F\x0c\xfb\xbdZ\xb8?&%A\xf2'
-		plaintext = b"abcdf"
+		plaintext = b"abcdfg"
 
 		f = Feistel(key,3)
 		ciphertext = f.encrypt(plaintext)
@@ -136,7 +100,7 @@ class test(unittest.TestCase):
 		self.assertEqual(plaintext,plaintext_)
 
 	def test_strange_inpt1(self):
-		key = b"12#A33"
+		key = b"12#A333213"
 		plaintext = b"@!#CASF:"
 
 		f = Feistel(key,3)

@@ -17,7 +17,7 @@ class block(object):
 
 	TODO: i want to add padding into blocks function, also the extending function. So we can do everything easier.
 	"""
-	def __init__(self, block_size, plaintext=None, ciphertext=None, 
+	def __init__(self, block_size=16, plaintext=None, ciphertext=None, 
 					padding=None, inverse=False, extending=2):
 		if ciphertext and not plaintext:
 			try:
@@ -201,96 +201,31 @@ class block(object):
 		return [self.toint(b) for b in self._block]
 
 
-
-	"""
-	block extending is not available, but i will keep it because i think i will use it again.
-	"""
-	def remove_extending(self):
-		# there is something wrong about re.sub, so i have to change to this.
-		self.plaintext = self.plaintext.replace(
-			b"".join(re.findall(b"\xff\xff.*\xff\xff",  self.plaintext, re.DOTALL)), b"")
-
-
-	def block_extend(self, blocks):
-		"""
-		_num:	 		how many block(s) we need
-		"""
-		origin = blocks
-		x = len(origin)
-		_num = 0
-		func = lambda n : int(64*n/self.block_size - x)
-		for n in range(1,1000):
-			_num = func(n)
-			if _num > 0:
-				_num = int(_num)
-				break
-
-		 
-		extending_block = [b"\xff\xff"+ byte +b"\xff\xff" for byte in self.to_14bytes(_num)]
-		return origin + extending_block
-
-	def to_14bytes(self, _num):
-		"""
-		use plainext and number to compute the seed, key is option
-		p -> plaintext to int
-
-		p' -> p^n * e^n + key^3 n->[0,k1]
-		   -> p^n * pi^n + key^3 n->[k1,infinity]
-		   n -> how many block we need
-		   ki -> 64/block_size
-			  -> 64/16 [0,2] (2,4] Recommend
-			  -> 64/8  [0,4] (4,8] Option
-			  -> 64/32 [0,1] (1,2] Not recommend, if block_size bigger than 32, raise error.
-
-		"""
-
-		if _num <= (64/self.block_size)/2:
-			seeds = int(self.toint(self.plaintext) ** _num) * int((3**0.7) **_num)
-		else:
-			seeds = int(self.toint(self.plaintext) ** _num) * int((7**0.3) **_num)
-
-		seed(seeds)
-		return [b"".join([randint(1,254).to_bytes(1, sys.byteorder) for _ in range(self.block_size - 4)]) for _ in range(_num)]
-
-
 class test(unittest.TestCase):
 
 	def test_padding(self):
+		# it is useless to special bytes.
 		func = ["PKCS7", "ISO10126", "xff", "ANSIX923", "ISOIEC7816_4"]
 		for f in func:
 			print(f)
 			# plaintext size < block size
-			b = block(plaintext=b"abcd", block_size=b"efghijkl")
-			new_p = b.blocks(padding=f)._block
-			self.assertNotEqual(len(new_p[0]) - len(b"efghijkl"), -1)
-			self.assertEqual(len(new_p[0]) % len(b"efghijkl"), 0)
+			b = block(plaintext=b"abcd", padding=f)._block
+			b = block(plaintext=b"".join(b), padding=f, inverse=True)._block
+			self.assertEqual(b"".join(b), b"abcd")
 
-			new_p = b"".join(new_p)
-			b = block(plaintext=new_p, block_size=b"efghijkl", extending=0)
-			old_p = b.blocks(padding=f, inverse=True)._block
-			self.assertEqual(b"".join(old_p), b"abcd")
+			b = block(plaintext=b"abcdefghijk", padding=f)._block
+			b = block(plaintext=b"".join(b), padding=f, inverse=True)._block
+			self.assertEqual(b"".join(b), b"abcdefghijk")
 			
 			# plaintext size > block size
-			b = block(plaintext=b"abcdefghijk", block_size=b"abcdefgh")
-			new_p = b.blocks(padding=f)._block
-			self.assertNotEqual(len(new_p[0]) - len(b"abcdefgh"), -1)
-			self.assertEqual(len(new_p[0]) % len(b"abcdefgh"), 0)
-
-			new_p = b"".join(new_p)
-			b = block(plaintext=new_p, block_size=b"abcdefgh", extending=0)
-			old_p = b.blocks(padding=f, inverse=True)._block
-			self.assertEqual(b"".join(old_p), b"abcdefghijk")
+			b = block(plaintext=b"abcdefghijkabcdefghijkabcdefghijk", padding=f)._block
+			b = block(plaintext=b"".join(b), padding=f, inverse=True)._block
+			self.assertEqual(b"".join(b), b"abcdefghijkabcdefghijkabcdefghijk")
 
 			# plaintext size = block size
-			b = block(plaintext=b"abcdefgh", block_size=b"abcdefgh")
-			new_p = b.blocks(padding=f)._block
-			self.assertNotEqual(len(new_p[0]) - len(b"abcdefgh"), -1)
-			self.assertEqual(len(new_p[0]) % len(b"abcdefgh"), 0)
-
-			new_p = b"".join(new_p)
-			b = block(plaintext=new_p, block_size=b"abcdefgh", extending=0)
-			old_p = b.blocks(padding=f, inverse=True)._block
-			self.assertEqual(b"".join(old_p), b"abcdefgh")
+			b = block(plaintext=b"abcdefghijklmnop", padding=f)._block
+			b = block(plaintext=b"".join(b), padding=f, inverse=True)._block
+			self.assertEqual(b"".join(b), b"abcdefghijklmnop")
 
 	def test_block_extending(self):
 		#b = block(plaintext=b"efgh", block_size=8)

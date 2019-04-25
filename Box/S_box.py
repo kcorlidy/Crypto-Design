@@ -5,6 +5,7 @@ from itertools import product
 from copy import copy
 from functools import reduce
 import warnings
+import sys
 
 """
 Just a very very simple of S-box. Dont use it anywhere! But it is a dynamic S-Box.
@@ -53,11 +54,9 @@ class S_box(object):
 		We must limit that key length % 16 == 0, so we can apply each 8bits to each row/column.row
 		If key size is 32 so we can build two S-boxes. 48 to 3, 64 to 4.
 		`task above has finished`
-
-		2019-04-14 21:28:36, i think we have to make the output be more chaos.
 		"""
 
-		p = self.store.get("p")
+		p = self.store.get("p") # part of key
 
 		if not self.store.get("_p"):
 			_p = reduce(lambda x,y: x^y, p) # ((a0 ^ a1) ^ a3)^...)^an
@@ -79,7 +78,7 @@ class S_box(object):
 
 		self.unique.add(result)
 
-		return result
+		return int(result, 2)
 
 	def initialize(self):
 		"""
@@ -91,7 +90,7 @@ class S_box(object):
 
 		# initialize fundamental parameter that need in bent function.
 		n = 16
-		self.store["p"] = [int(k, 2) for k in self.key.split()]
+		self.store["p"] = [int(k, 2) for k in self.key.split()] # use key to generate each elements.
 
 		for _ in range(self.box_num):
 			self.box[_] = self.inverse_box[_] = [[0] * n for _ in range(n)] # 16 * 16
@@ -113,50 +112,48 @@ class S_box(object):
 		
 		return None
 
-	def _inverse_box(self,value):
+	def _inverse_box(self,value, _box):
 		"""
 		honestly, i can't create the inverse bent function, 
 			but i can build a inverse S-Box.
 		"""
-		try:
-			return list(zip(*np.where(self.box.get(0) == value)))[0]
-
-		except Exception as e:
-			
-			return [(ix,iy) for ix, row in enumerate(self.box.get(0)) for iy, i in enumerate(row) if i == value][0]
+		#return list(zip(*np.where(self.box.get(0) == value)))[0]
+		return [(ix,iy) for ix, row in enumerate(_box) for iy, i in enumerate(row) if i == value]
 		
 
-	def select(self,plaintext=None ,ciphertext=None):
+	def select(self, plaintext=None ,ciphertext=None):
 
 		if not plaintext and not ciphertext:
 			raise AttributeError("plaintext or ciphertext is necessary.")
 		elif plaintext and ciphertext:
 			raise AttributeError("plaintext or ciphertext is necessary. But only one we need!")
 
-		self.plaintext = self.tobin(plaintext) if plaintext else None
-		self.ciphertext = int(ciphertext, 16) if ciphertext else None
 
-
-		if self.plaintext:
+		if plaintext:
+			self.plaintext = plaintext
 			for _ in range(self.rounds):
-				to_bin_set = [re.findall(r"\d{4}" , x) for x in self.plaintext.split()]
-				self.plaintext = " ".join([self.box.get(0)[int(a, 2)][int(b,2)] for a,b in to_bin_set])
-			return hex(int(self.plaintext.replace(" ", ""), 2))[2:]
+				for _box in self.box.values():
 
-		elif self.ciphertext:
-			cipherbin = format(self.ciphertext, "#010b")[2:]
-			while len(cipherbin)%8:
-				cipherbin = "0" + cipherbin
+					self.plaintext = self.tobin(self.plaintext)
+					to_bin_set = [re.findall(r"\d{4}" , x) for x in self.plaintext.split()]
+					
+					self.plaintext = b"".join([ 
+						_box[int(a, 2)][int(b,2)].to_bytes(1, sys.byteorder) 
+						for a,b in to_bin_set])
+
+			return self.plaintext
+
+		elif ciphertext:
+			self.ciphertext = ciphertext
 
 			for _ in range(self.rounds):
-				bins = re.findall(r"\d{8}", cipherbin)
-				pos = [self._inverse_box(b) for b in bins]
-				result = [format(a,"#06b")[2:]+format(b,"#06b")[2:] for a,b in pos]
+				for _box in list(self.box.values())[::-1]:
 
-				if _ != self.rounds:
-					cipherbin = "".join(result)
-			
-			return bytes([int(r, 2) for r in result])
+					pos = [self._inverse_box(b, _box) for b in self.ciphertext]
+					result = [format(p[0][0],"#06b")[2:] + format(p[0][1],"#06b")[2:] for p in pos]
+					self.ciphertext = b"".join(int(e, 2).to_bytes(1, sys.byteorder)  for e in result)
+
+			return self.ciphertext
 	
 	
 
@@ -164,13 +161,18 @@ class S_box(object):
 class test(unittest.TestCase):
 
 	def test_base(self):
-		box = S_box(b"thithisdawdenbyteswdawdawddawda3232d",rounds=6)
+		box = S_box(b"thithisdawdenbyteswdawdawddawda3232d",rounds=9)
 		plaintext = b"tbuytawewrtecees"
 		output = box.select(plaintext=plaintext)
 		rbox = box.select(ciphertext=output)
 		self.assertEqual(plaintext, rbox)
-		print(output)
-		
+
+	def test_special_content(self):
+		box = S_box(b"\x00"*32,rounds=16)
+		plaintext = b"tbuytawewrtecees"
+		output = box.select(plaintext=plaintext)
+		rbox = box.select(ciphertext=output)
+		self.assertEqual(plaintext, rbox)
 		
 
 if __name__ == '__main__':
