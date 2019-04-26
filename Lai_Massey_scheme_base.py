@@ -3,6 +3,7 @@ import unittest
 import re
 import warnings
 from _warn import ParamWarning, ParamError
+from Operator_ import Operator
 from Crypto import Random
 
 class Lai_Massey(object):

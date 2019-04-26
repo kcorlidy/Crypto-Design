@@ -4,7 +4,7 @@ import re
 import warnings
 from _warn import ParamWarning, ParamError
 from Crypto import Random
-from operator import xor
+from Operator_ import Xor
 import sys
 import os
 
@@ -25,10 +25,7 @@ class Feistel(object):
 
 	def F(self,a,key):
 		# a,key are integer.
-		return self.xor_bytes(a,key)
-
-	def xor_bytes(self,a,b):
-		return b"".join( [ints.to_bytes(1, sys.byteorder) for ints in map(lambda x: xor(*x), zip(a,b))] )
+		return Xor(a,key)
 
 	def encrypt(self,plaintext):
 
@@ -44,7 +41,7 @@ class Feistel(object):
 
 		for _ in range(self.rounds):	
 			L += [R[_]]
-			R += [self.xor_bytes(L[_], 
+			R += [Xor(L[_], 
 			self.F(self, R[_], self.key)
 			)]
 		
@@ -57,7 +54,7 @@ class Feistel(object):
 		
 		for _ in range(self.rounds)[::-1]:
 			R[_] = L[_+1]
-			L[_] = self.xor_bytes(R[_+1], self.F(self,
+			L[_] = Xor(R[_+1], self.F(self,
 												L[_+1], self.key)
 									)
 		
@@ -81,7 +78,7 @@ class test(unittest.TestCase):
 		plaintext = b"abcdfg"
 
 		def _f(self, a, key):
-			return self.xor_bytes(self.xor_bytes(a,key), b"\xff"*16)
+			return Xor(Xor(a,key), b"\xff"*16)
 
 		f = Feistel(key,3,f=_f)
 		ciphertext = f.encrypt(plaintext)
