@@ -54,8 +54,8 @@ class Feistel(object):
 		
 		for _ in range(self.rounds)[::-1]:
 			R[_] = L[_+1]
-			L[_] = Xor(R[_+1], self.F(self,
-												L[_+1], self.key)
+			L[_] = Xor(R[_+1], 
+						self.F(self,L[_+1], self.key)
 									)
 		
 		return L[0]+R[0]
