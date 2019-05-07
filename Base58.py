@@ -7,6 +7,7 @@
 
 from hashlib import sha256
 import unittest
+import re
 
 __base58_alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 __base58_alphabet_bytes = b'123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
@@ -50,9 +51,12 @@ def check_encode(raw):
 def decode(data):
 	"Decode Bitcoin base58 format string to bytes"
 	# Python 2.x compatability
+	x00 = re.findall(r"^[1]+", data)
+	x00 = len(x00[0]) if x00 else 0
+	
 	if bytes != str:
 		data = bytes(data, 'ascii')
-
+	
 	val = 0
 	for (i, c) in enumerate(data[::-1]):
 		val += __base58_alphabet_bytes.find(c) * (__base58_radix**i)
@@ -64,7 +68,7 @@ def decode(data):
 	if val:
 		dec.append(val)
 
-	return bytes(dec[::-1])
+	return b"\x00"*x00 + bytes(dec[::-1])
 
 
 def check_decode(enc):
@@ -90,7 +94,7 @@ class test(unittest.TestCase):
 		self.assertEqual(decode(enc), data)
 
 	def test_encode_utf8(self):
-		data = b"\x00\xff\x00"
+		data = b"\x00\x00\xff\xff"
 		enc = encode(data)
 		print(enc)
 		self.assertEqual(decode(enc), data)

@@ -2,19 +2,6 @@ from binascii import unhexlify, hexlify
 import unittest
 import base64
 import re
-import struct
-
-def string_to_int(data):
-	"Convert string of bytes Python integer, MSB"
-	val = 0
-   
-	# Python 2.x compatibility
-	if type(data) == str:
-		data = bytearray(data)
-
-	for (i, c) in enumerate(data[::-1]):
-		val += (256**i)*c
-	return val
 
 class _baseary(object):
 	
@@ -36,7 +23,7 @@ class _baseary(object):
 			self.string = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 			self.pad_size = 5
 		elif base == 58:
-			self.string = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+			self.string = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 		elif base == 64:
 			self.string = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 			self.pad_size = 6
@@ -82,26 +69,6 @@ class _baseary(object):
 			return result + padding
 		return result
 
-	def encode_bytes_2(self):
-
-		padding = (-len(self.bytestring)) % 4
-		if padding:
-			self.bytestring = self.bytestring + b'\0' * padding
-
-		chars = [bytes((i,)) for i in self.string]
-		chars2 = [(a + b) for a in chars for b in chars]
-		
-
-		sti = string_to_int(self.bytestring)
-		words = struct.Struct('!%dI' % (len(self.bytestring) // 4)).unpack(self.bytestring)
-
-		chunks = [
-			  (chars2[word // 195112] +
-			   chars2[word // 58 % 3364] +
-			   chars[word % 58])
-			  for word in words]
-
-		return b"".join(chunks)
 	
 class test(unittest.TestCase):
 	
@@ -148,13 +115,6 @@ class test(unittest.TestCase):
 			ary = _baseary(bytestring=bytestring, base=64)
 			a = ary.encode_bytes()
 			self.assertEqual(a, base64.b64encode(bytestring))
-
-	def test_base58_bytes(self):
-		bytestrings = [b"\x00\xff\x00\xff\x00", b"c"]
-		for bytestring in bytestrings:
-			ary = _baseary(bytestring=bytestring, base=58)
-			a = ary.encode_bytes_2()
-			print(a) # LQX
 			
 
 if __name__ == '__main__':
