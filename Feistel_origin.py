@@ -64,13 +64,13 @@ class Feistel(object):
 class test(unittest.TestCase):
 	
 	def test_base(self):
-		key = b"123433"
+		key = b"1234"
 		plaintext = b"\x00\x00"
 
 		f = Feistel(key,3)
 		ciphertext = f.encrypt(plaintext)
 		plaintext_ = f.decrypt(ciphertext)
-
+		print(ciphertext, plaintext_)
 		self.assertEqual(plaintext,plaintext_)
 	
 	def test_new_F(self):
