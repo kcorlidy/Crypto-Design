@@ -69,7 +69,36 @@ class _baseary(object):
 			return result + padding
 		return result
 
+
+def base64_fast(inputs):
+	pos = 0
+	output = []
+	for p,x in enumerate(inputs):
+		if pos == 0:
+			output.append( x >> 2)
+		elif pos == 1:
+			output.append(((((inputs[p-1] >> 2) << 2) ^ inputs[p-1]) << 4) + (x >> 4))
+		elif pos == 2:
+			output.append(((((inputs[p-1] >> 4) << 4) ^ inputs[p-1]) << 2) + (x >> 6))
+			output.append(((x >> 6) << 6) ^ x)
+			pos -= 3
+		pos += 1
+
+	padding = len(inputs) % (6 * 4)
+	if padding == 1:
+		padding = b'======'
+	elif padding == 2:
+		padding = b'===='
+	elif padding == 3:
+		padding = b'==='
+	elif padding == 4:
+		padding = b'='
+	else:
+		padding = b''
 	
+	return b"".join(
+		b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[i:i+1] for i in output) + padding
+
 class test(unittest.TestCase):
 	
 	def test_base32_int(self):
@@ -115,7 +144,12 @@ class test(unittest.TestCase):
 			ary = _baseary(bytestring=bytestring, base=64)
 			a = ary.encode_bytes()
 			self.assertEqual(a, base64.b64encode(bytestring))
-			
+
+	def test_base64_fast(self):
+		bytestrings = [b"\x00\xff\x00"*16, b"\xff\xff\xff"*16, b"\x00\x00\x00"*16]
+		for bytestring in bytestrings:
+			a = base64_fast(bytestring)
+			self.assertEqual(a, base64.b64encode(bytestring))
 
 if __name__ == '__main__':
 

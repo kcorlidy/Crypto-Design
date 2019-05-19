@@ -1,8 +1,8 @@
 package cipher
 
 import (
-	//"crypto/sha256"
 	"bytes"
+	"crypto/sha256"
 	//"fmt"
 	"math/big"
 )
@@ -100,10 +100,19 @@ func B58decode(data []byte) []byte {
 	return result
 }
 
-func B58encode_check() {
-
+func B58encode_check(raw []byte) []byte {
+	chk := sha256.Sum256(raw)
+	chk = sha256.Sum256(chk[:])
+	return B58encode(append(raw, chk[:4]...))
 }
 
-func B58decode_check() {
-
+func B58decode_check(enc []byte) []byte {
+	dec := B58decode(enc)
+	raw, chk := dec[:60], dec[60:]
+	check := sha256.Sum256(raw)
+	check = sha256.Sum256(check[:])
+	if bytes.Equal(chk, check[:4]) {
+		panic("base58 decoding checksum error")
+	}
+	return raw
 }
