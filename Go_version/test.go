@@ -23,10 +23,16 @@ func test_sbox() {
 }
 
 func test_base58() {
-
+	// 24930 b'\x00\x00ab' 118Qq python
+	// 25185   \x00\x00ab  118Qq go
+	plaintext := []byte("\x00\x00ab")
+	ciphertext := cipher.B58encode(plaintext)
+	plaintext_ := cipher.B58decode(ciphertext)
+	fmt.Printf("ciphertext:%s plaintext:%s origin_text:%s\n", ciphertext, plaintext_, plaintext)
 }
 
 func main() {
 	test_feistel()
 	test_sbox()
+	test_base58()
 }
