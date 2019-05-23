@@ -1,16 +1,63 @@
 package cipher
 
+// Copyright (c) 2017 kcorlidy Chan
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 import (
-	//"fmt"
 	"bytes"
-	"encoding/binary"
+	"crypto/sha256"
+	"encoding/hex"
+	"golang.org/x/crypto/ripemd160"
 )
+
+type bytestring []byte
+
+func Segwit_scriptpubkey(witver byte, witprog []byte) string {
+	result := make([]byte, 0)
+	if witver != 0 {
+		result = append(result, witver+0x50)
+	} else {
+		result = append(result, 0)
+	}
+	return hex.EncodeToString(append(append(result, byte(len(witprog))), witprog...))
+}
 
 var CHARSET = []byte("qpzry9x8gf2tvdw0s3jn54khce6mua7l")
 
-func Bech32encode(hrp []byte, witver int, witprog []byte) []byte {
+func Bech32encode(hrp []byte, key []byte) []byte {
+
+	ff := sha256.Sum256(key)
+
+	rip := ripemd160.New()
+	rip.Write(ff[:])
+	ff_ := rip.Sum(nil)
+
+	witprog := append([]byte("\x00\x14"), ff_...)
+	witver := byte(0)
+
+	if witprog[0] > 0 {
+		witver = witprog[0] - byte(0x50)
+	}
+	witprog = witprog[2:]
 	bs := make([]byte, 0)
-	binary.LittleEndian.PutUint32(bs, uint32(witver))
+	bs = append(bs, witver)
 	ret := encode(hrp, append(bs, convertbits(witprog, 8, 5, true)...))
 	Bech32decode(hrp, ret)
 	return ret
@@ -48,18 +95,22 @@ func decode(bech []byte) ([]byte, []byte) {
 	if pos < 1 || pos+7 > len(bech) || len(bech) > 90 {
 		panic("decode error")
 	}
-	for x := range bech[pos+1:] {
-		if bytes.IndexByte(CHARSET, bech[pos+1+x]) < 0 {
+
+	bech_ := bech[pos+1:]
+	hrp := bech[:pos]
+	data := make([]byte, 0)
+
+	for x := range bech_ {
+		if bytes.IndexByte(CHARSET, bech_[x]) < 0 {
 			panic("decode error")
 		}
 	}
-	hrp := bech[:pos]
-	data := make([]byte, 0)
-	for x := range bech[pos+1:] {
-		data = append(data, CHARSET[bytes.IndexByte(bech[pos+1:], bech[pos+1+x])])
+
+	for p := range bech_ {
+		data = append(data, byte(bytes.IndexByte(CHARSET, bech_[p])))
 	}
-	if bech32_verify_checksum(hrp, data) != true {
-		panic("decode error")
+	if !bech32_verify_checksum(hrp, data) {
+		panic("decode error bech32_verify_checksum")
 	}
 	return hrp, data[:len(data)-6]
 }
@@ -68,7 +119,7 @@ func encode(hrp []byte, data []byte) []byte {
 	combined := append(data, bech32_create_checksum(hrp, data)...)
 	result := make([]byte, 0)
 	for d := range combined {
-		result = append(result, CHARSET[d])
+		result = append(result, CHARSET[combined[d]])
 	}
 	return append(append(hrp, []byte("1")...), result...)
 }
@@ -103,7 +154,7 @@ func convertbits(data []byte, frombits uint, tobits uint, pad bool) []byte {
 
 }
 
-func bech32_polymod(values []byte) byte {
+func bech32_polymod(values []byte) int {
 	// Internal function that computes the Bech32 checksum.
 	generator := []int{0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3}
 	chk, top := 1, 0
@@ -111,30 +162,31 @@ func bech32_polymod(values []byte) byte {
 		top = chk >> 25
 		chk = (chk&0x1ffffff)<<5 ^ int(values[p])
 		for i := 0; i < 5; i++ {
-			if (top>>uint(i))&1 > 0 {
+			if (top>>uint(i))&1 != 0 {
 				chk ^= generator[i]
 			} else {
 				chk ^= 0
 			}
 		}
 	}
-	return byte(chk)
+	return chk
 
 }
 
 func bech32_hrp_expand(hrp []byte) []byte {
+
 	ar1, ar2 := make([]byte, 0), make([]byte, 0)
 	for hr1 := range hrp {
-		ar1[hr1] = hrp[hr1] >> 5
+		ar1 = append(ar1, byte(hrp[hr1]>>5))
 	}
 	for hr2 := range hrp {
-		ar2[hr2] = hrp[hr2] & 31
+		ar2 = append(ar2, byte(hrp[hr2]&31))
 	}
-	return append(append(ar2, byte(0)), ar2...)
+	return append(append(ar1, byte(0)), ar2...)
 }
 
 func bech32_verify_checksum(hrp []byte, data []byte) bool {
-	if bech32_polymod(append(bech32_hrp_expand(hrp), data...)) == 1 {
+	if bech32_polymod(append(bech32_hrp_expand(hrp), data...)) > 0 {
 		return true
 	}
 	return false
@@ -142,10 +194,12 @@ func bech32_verify_checksum(hrp []byte, data []byte) bool {
 
 func bech32_create_checksum(hrp []byte, data []byte) []byte {
 	values := append(bech32_hrp_expand(hrp), data...)
-	polymod := bech32_polymod(append(values, []byte{0, 0, 0, 0, 0, 0}...)) ^ 1
+	polymod := bech32_polymod(append(values, []byte("\x00\x00\x00\x00\x00\x00")...)) ^ 1
+
 	ar := make([]byte, 0)
 	for i := 0; i < 6; i++ {
-		ar[i] = byte((int(polymod) >> 5 * (5 - i)) & 31)
+		ar = append(ar, byte((polymod>>uint(5*(5-i)))&31))
 	}
+
 	return ar
 }

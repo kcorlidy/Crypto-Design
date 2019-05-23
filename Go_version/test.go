@@ -31,8 +31,21 @@ func test_base58() {
 	fmt.Printf("ciphertext:%s plaintext:%s origin_text:%s\n", ciphertext, plaintext_, plaintext)
 }
 
+func test_bech32() {
+
+	witver, witprog := cipher.Bech32decode([]byte("bc"),
+		[]byte("bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"))
+	scriptpubkey_ := cipher.Segwit_scriptpubkey(witver, witprog)
+	fmt.Println(scriptpubkey_)
+
+	key := []byte("0330d54fd0dd420a6e5f8d3624f5f3482cae350f79d5f0753bf5beef9c2d91af3c")
+	value := cipher.Bech32encode([]byte("bc"), key)
+	fmt.Printf("%s\n", value)
+}
+
 func main() {
 	test_feistel()
 	test_sbox()
 	test_base58()
+	test_bech32()
 }
